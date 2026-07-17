@@ -1,1 +1,767 @@
-../friends_trip_2027_dashboard.html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2027 Friends Trip — Destination Cost Comparison</title>
+<style>
+  .viz-root {
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --page:           #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --gridline:       #e1e0d9;
+    --baseline:       #c3c2b7;
+    --border:         rgba(11,11,11,0.10);
+    --series-1:       #2a78d6;
+    --series-1-wash:  rgba(42,120,214,0.10);
+    --status-good:    #0ca30c;
+    --status-warning: #fab219;
+    --success-text:   #006300;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root {
+      color-scheme: dark;
+      --surface-1:      #1a1a19;
+      --page:           #0d0d0d;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --gridline:       #2c2c2a;
+      --baseline:       #383835;
+      --border:         rgba(255,255,255,0.10);
+      --series-1:       #3987e5;
+      --series-1-wash:  rgba(57,135,229,0.14);
+      --status-good:    #0ca30c;
+      --status-warning: #fab219;
+      --success-text:   #0ca30c;
+    }
+  }
+  :root[data-theme="dark"] .viz-root {
+    color-scheme: dark;
+    --surface-1:      #1a1a19;
+    --page:           #0d0d0d;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #898781;
+    --gridline:       #2c2c2a;
+    --baseline:       #383835;
+    --border:         rgba(255,255,255,0.10);
+    --series-1:       #3987e5;
+    --series-1-wash:  rgba(57,135,229,0.14);
+    --status-good:    #0ca30c;
+    --status-warning: #fab219;
+    --success-text:   #0ca30c;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--page);
+    color: var(--text-primary);
+  }
+  .page { max-width: 1080px; margin: 0 auto; padding: 32px 20px 80px; }
+
+  header.hero { margin-bottom: 28px; }
+  header.hero h1 { font-size: 26px; margin: 0 0 6px; }
+  header.hero .sub { color: var(--text-secondary); font-size: 15px; line-height: 1.5; margin: 0; }
+  header.hero .meta { color: var(--text-muted); font-size: 13px; margin-top: 10px; }
+  .constraint-chip {
+    display: inline-block; background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 999px; padding: 4px 12px; font-size: 12.5px; color: var(--text-secondary);
+    margin: 2px 6px 2px 0;
+  }
+
+  .card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 22px;
+    margin-bottom: 20px;
+  }
+  .card h2 { font-size: 17px; margin: 0 0 4px; }
+  .card .card-sub { color: var(--text-secondary); font-size: 13.5px; margin: 0 0 16px; }
+
+  /* KPI row */
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
+  .kpi-tile {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px 18px;
+  }
+  .kpi-tile .label { color: var(--text-secondary); font-size: 12.5px; margin-bottom: 6px; }
+  .kpi-tile .value { font-size: 22px; font-weight: 600; }
+  .kpi-tile .subvalue { color: var(--text-muted); font-size: 12.5px; margin-top: 3px; }
+
+  /* Bar chart */
+  .chart-plot { position: relative; padding-left: 176px; padding-right: 60px; margin-top: 8px; }
+  .gridlines { position: absolute; left: 176px; right: 60px; top: 0; bottom: 26px; }
+  .gridlines i {
+    position: absolute; top: 0; bottom: 0; width: 1px; background: var(--gridline);
+  }
+  .axis-row { position: relative; height: 22px; margin-left: 176px; margin-right: 60px; }
+  .axis-row span {
+    position: absolute; transform: translateX(-50%); font-size: 11.5px; color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .bar-row { position: relative; display: flex; align-items: center; height: 34px; }
+  .bar-label {
+    position: absolute; left: -176px; width: 168px; font-size: 13px; color: var(--text-primary);
+    padding-right: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    cursor: default;
+  }
+  .bar-track { position: relative; height: 22px; width: 100%; }
+  .bar-fill {
+    position: absolute; left: 0; top: 0; height: 22px; background: var(--series-1);
+    border-radius: 0 4px 4px 0; cursor: pointer; outline-offset: 2px;
+    transition: filter 0.1s ease;
+  }
+  .bar-fill:hover, .bar-fill:focus-visible { filter: brightness(1.12); }
+  .bar-value {
+    position: absolute; top: 50%; transform: translateY(-50%); font-size: 12.5px;
+    font-weight: 600; color: var(--text-primary); white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .badge-good {
+    display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600;
+    color: var(--success-text); margin-left: 8px;
+  }
+
+  #tooltip {
+    position: fixed; pointer-events: none; background: var(--text-primary); color: var(--page);
+    padding: 7px 10px; border-radius: 6px; font-size: 12.5px; line-height: 1.4;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.22); opacity: 0; transition: opacity 0.08s ease; z-index: 50;
+    max-width: 220px;
+  }
+  #tooltip .tt-value { font-weight: 700; }
+  #tooltip.show { opacity: 1; }
+
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 540px; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--gridline); }
+  th { color: var(--text-secondary); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.02em; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr:last-child td { border-bottom: none; }
+  .note-cell { color: var(--text-secondary); font-size: 12.5px; }
+
+  details.dest {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px;
+    margin-bottom: 12px; overflow: hidden;
+  }
+  details.dest > summary {
+    list-style: none; cursor: pointer; padding: 16px 20px; display: flex; align-items: center;
+    justify-content: space-between; gap: 12px;
+  }
+  details.dest > summary::-webkit-details-marker { display: none; }
+  details.dest > summary .s-left { display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; }
+  details.dest > summary .s-name { font-size: 15.5px; font-weight: 600; }
+  details.dest > summary .s-airport { color: var(--text-muted); font-size: 12.5px; }
+  details.dest > summary .s-right { display:flex; align-items:baseline; gap:18px; white-space:nowrap; }
+  details.dest > summary .s-total { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  details.dest > summary .s-pp { color: var(--text-secondary); font-size: 12.5px; }
+  details.dest > summary .chevron { color: var(--text-muted); transition: transform 0.15s ease; font-size: 12px; }
+  details.dest[open] > summary .chevron { transform: rotate(90deg); }
+  .dest-body { padding: 0 20px 20px; border-top: 1px solid var(--border); }
+  .dest-body .lodging-pick { font-size: 13.5px; color: var(--text-secondary); margin: 14px 0 12px; padding: 10px 12px; background: var(--series-1-wash); border-radius: 8px; }
+  .dest-body ul.notes { margin: 10px 0 0; padding-left: 18px; font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+  .warn-chip {
+    display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600;
+    color: #92600a; background: rgba(250,178,25,0.18); border-radius: 6px; padding: 3px 8px; margin-top: 10px;
+  }
+  @media (prefers-color-scheme: dark) { .warn-chip { color: #ffce6b; } }
+
+  .timeline { display: flex; align-items: flex-start; position: relative; margin-top: 26px; }
+  .timeline-step { position: relative; flex: 1; padding: 0 14px; text-align: left; }
+  .timeline-step::before {
+    content: ''; position: absolute; top: 8px; left: -50%; width: 100%; height: 2px; background: var(--baseline); z-index: 0;
+  }
+  .timeline-step:first-child::before { display: none; }
+  .timeline-step:first-child { padding-left: 0; }
+  .timeline-step:last-child { padding-right: 0; }
+  .timeline-dot {
+    width: 18px; height: 18px; border-radius: 50%; background: var(--series-1);
+    border: 3px solid var(--surface-1); position: relative; z-index: 1; margin-bottom: 12px; box-shadow: 0 0 0 1px var(--border);
+  }
+  .timeline-step.is-now .timeline-dot { background: var(--success-text); }
+  .timeline-when {
+    font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em;
+    margin-bottom: 5px; font-weight: 600;
+  }
+  .timeline-title { font-size: 13.5px; font-weight: 600; margin-bottom: 5px; }
+  .timeline-desc { font-size: 12.5px; color: var(--text-secondary); line-height: 1.55; }
+  .timeline-footnote { font-size: 12px; color: var(--text-muted); margin: 20px 0 0; line-height: 1.6; border-top: 1px solid var(--border); padding-top: 12px; }
+
+  @media (max-width: 860px) {
+    .timeline { flex-direction: column; gap: 20px; }
+    .timeline-step { padding: 0 0 0 20px; width: 100%; }
+    .timeline-step::before { left: 8px; top: -12px; width: 2px; height: 20px; }
+    .timeline-step:first-child { padding-left: 20px; }
+  }
+
+  footer.methodology { color: var(--text-secondary); font-size: 13px; line-height: 1.7; }
+  footer.methodology h2 { font-size: 15px; color: var(--text-primary); }
+  footer.methodology ul { padding-left: 18px; margin: 8px 0; }
+  footer.methodology .updated { color: var(--text-muted); font-size: 12px; margin-top: 18px; border-top: 1px solid var(--border); padding-top: 14px; }
+
+  @media (max-width: 720px) {
+    .kpis { grid-template-columns: repeat(2, 1fr); }
+    .chart-plot { padding-left: 0; }
+    .gridlines, .axis-row { display: none; }
+    .bar-label { position: static; width: auto; margin-bottom: 4px; }
+    .bar-row { flex-direction: column; align-items: flex-start; height: auto; padding: 8px 0; gap: 4px; }
+    .bar-track { height: 20px; }
+    details.dest > summary { flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+<div class="viz-root">
+<div class="page">
+
+  <header class="hero">
+    <h1>2027 Friends Trip — Destination Cost Comparison</h1>
+    <p class="sub">20 people across 6 families · 4–5 days, targeting mid-June–mid-July 2027 · representative-cost estimates, refreshed periodically as real 2027 pricing opens up.</p>
+  </header>
+
+  <div class="kpis">
+    <div class="kpi-tile">
+      <div class="label">Cheapest option</div>
+      <div class="value">Smoky Mtns, TN</div>
+      <div class="subvalue">≈ $395 / person</div>
+    </div>
+    <div class="kpi-tile">
+      <div class="label">Options compared</div>
+      <div class="value">11</div>
+      <div class="subvalue">destinations researched</div>
+    </div>
+    <div class="kpi-tile">
+      <div class="label">Group size</div>
+      <div class="value">20 people</div>
+      <div class="subvalue">6 families</div>
+    </div>
+    <div class="kpi-tile">
+      <div class="label">Cost spread</div>
+      <div class="value">$395–$1,498</div>
+      <div class="subvalue">per person, across options</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Per-person cost, low to high</h2>
+    <p class="card-sub">Flights/driving + a shared group lodging pick, per destination. Hover or focus a bar for the breakdown. Outer Banks includes a mandatory full-week lodging rule — see below.</p>
+    <div class="chart-plot">
+      <div class="gridlines" id="gridlines"></div>
+      <div id="barRows"></div>
+      <div class="axis-row" id="axisRow"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>All options, side by side</h2>
+    <p class="card-sub">The table view of the chart above, with grand totals and the headline caveat for each.</p>
+    <div class="table-scroll">
+    <table id="summaryTable">
+      <thead>
+        <tr>
+          <th>Destination</th>
+          <th>Nearest airport(s)</th>
+          <th class="num">Grand total</th>
+          <th class="num">Per person</th>
+          <th>Headline note</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>When we need to commit</h2>
+    <p class="card-sub">Large group properties (6+ bedrooms) for peak summer book ≈5.3–6.5 months out on average — the best-located, best-reviewed ones go earlier, before they ever hit public listings. Counting back from a mid-July 2027 trip:</p>
+    <div class="timeline">
+      <div class="timeline-step is-now">
+        <div class="timeline-dot"></div>
+        <div class="timeline-when">Now – Sep 2026</div>
+        <div class="timeline-title">Compare &amp; narrow down</div>
+        <div class="timeline-desc">Get the group aligned on 2-3 finalists from this dashboard. Worth reaching out directly to specific properties in the leading candidates to check real availability.</div>
+      </div>
+      <div class="timeline-step">
+        <div class="timeline-dot"></div>
+        <div class="timeline-when">By ≈late Sep 2026</div>
+        <div class="timeline-title">Commit to a destination + dates</div>
+        <div class="timeline-desc">The highest-leverage deadline. Locking here — ahead of the 5.3-6.5 month average — means first pick instead of leftovers, especially in tighter markets.</div>
+      </div>
+      <div class="timeline-step">
+        <div class="timeline-dot"></div>
+        <div class="timeline-when">Within 2-4 weeks of deciding</div>
+        <div class="timeline-title">Book &amp; deposit lodging</div>
+        <div class="timeline-desc">Most large-group rentals require a 25-50% deposit at booking. Don't sit on a decision once made — good properties move fast.</div>
+      </div>
+      <div class="timeline-step">
+        <div class="timeline-dot"></div>
+        <div class="timeline-when">Dec 2026 – Mar 2027</div>
+        <div class="timeline-title">Book flights</div>
+        <div class="timeline-desc">Aim to have all 20 seats ticketed by ≈March so the group can sit together. Peak-season group travel rewards booking earlier than the usual "3-4 weeks out" advice.</div>
+      </div>
+      <div class="timeline-step">
+        <div class="timeline-dot"></div>
+        <div class="timeline-when">≈30-45 days before</div>
+        <div class="timeline-title">Lock logistics</div>
+        <div class="timeline-desc">Final headcount, rental cars/vans, activity reservations, travel-insurance decision.</div>
+      </div>
+    </div>
+    <p class="timeline-footnote">Lead-time ranges are informed by industry booking-window data for 6+ bedroom peak-summer rentals and standard flight-pricing guidance, adjusted for a 20-person group that needs seats together during peak season. Bar Harbor and Outer Banks are tighter markets — if either becomes a finalist, move the lodging deadline up by 4-6 weeks.</p>
+  </div>
+
+  <div class="card">
+    <h2>Destination details</h2>
+    <p class="card-sub">Per-family flight/drive cost, lodging share, and total — expand any destination.</p>
+    <div id="destinationList"></div>
+  </div>
+
+  <div class="card">
+    <h2>Friends &amp; travel preferences</h2>
+    <p class="card-sub">Source data — kept current in <code>friends_trip_2027_config.yaml</code>. Airports are listed most- to least-preferred.</p>
+    <div class="table-scroll">
+    <table id="friendsTable">
+      <thead>
+        <tr><th>Friend(s)</th><th>Home</th><th>Preferred airports</th><th class="num">Passengers</th><th>Passport</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <footer class="methodology">
+      <h2>Methodology &amp; assumptions</h2>
+      <ul>
+        <li><strong>Pricing proxy:</strong> 2027 summer fares and lodging rates aren't bookable yet (airlines typically open schedules ~11 months out). Every figure here uses current comparable-season pricing for the same routes/properties as a stand-in — treat as directional, and expect to re-price 3–6 months before the trip.</li>
+        <li><strong>Trip window used for costing:</strong> 4 nights, representative dates Thu Jul 15 – Mon Jul 19, 2027 (the group has flexibility from mid-June through mid-July).</li>
+        <li><strong>Fee/tax consistency:</strong> most destinations' lodging figures include local occupancy tax and cleaning fees; Las Vegas and a couple of others explicitly exclude them (noted per destination) — actual gap could run 10–25% higher there.</li>
+        <li><strong>Not included anywhere:</strong> food, activities/tickets, trip insurance, and rental cars except where a destination specifically requires one (noted).</li>
+        <li><strong>Each family priced from its highest-preference airport</strong> unless a lower-preference airport was meaningfully cheaper or better-routed — flagged in that destination's detail card when relevant.</li>
+      </ul>
+      <div class="updated">Last updated 2026-07-17 · Next automatic refresh ≈ Aug 1, 2026 (monthly) · Source config: friends_trip_2027_config.yaml</div>
+    </footer>
+  </div>
+
+</div>
+</div>
+
+<div id="tooltip"></div>
+
+<script>
+  const destinations = [
+    {
+      id: 'smoky', name: 'Smoky Mountains, TN', shortName: 'Smoky Mountains, TN', airport: 'TYS (Knoxville) · alt AVL',
+      grandTotal: 7900, perPerson: 395, badge: 'good', badgeText: 'Cheapest option',
+      headline: 'Driving beats flying for 3 of 6 families — saves the group ~$2,800.',
+      lodging: 'Roaring Fork Lodge, Gatlinburg — 6BR, sleeps 20, ≈$919/night → ≈$3,676 base (≈$4,700 all-in) for 4 nights. Huge, competitive large-cabin market in this area.',
+      notes: [
+        'Driving wins for Joe/Stef (~9hr, but flag: that’s a long single-day push), Nate (~4hr), and Wendy/Mike (~4hr) — all cheaper and often faster door-to-door than flying regional hops.',
+        'Family-table figures below are base (pre-tax); the $7,900 headline total adds ≈13.75% lodging tax + cleaning fee.'
+      ],
+      families: [
+        {name:'Joe/Stef', pax:5, mode:'Drive', travel:170, lodging:920, total:1090},
+        {name:'Rylan', pax:6, mode:'Fly · DEN', travel:1800, lodging:1105, total:2905},
+        {name:'Nate', pax:2, mode:'Drive', travel:55, lodging:370, total:425},
+        {name:'Wendy/Mike', pax:4, mode:'Drive', travel:60, lodging:735, total:795},
+        {name:'Garrett', pax:2, mode:'Fly · SAN', travel:800, lodging:370, total:1170},
+        {name:'Jarrod', pax:1, mode:'Fly · ABQ', travel:320, lodging:185, total:505},
+      ]
+    },
+    {
+      id: 'hocking', name: 'Hocking Hills, OH', shortName: 'Hocking Hills, OH', airport: 'CMH (Columbus)',
+      grandTotal: 9800, perPerson: 490, badge: 'good', badgeText: 'Anchor option',
+      headline: 'The original pick — Joe/Stef drive, everyone else has a direct or 1-stop flight to CMH.',
+      lodging: 'Liberty Lodge (Inn &amp; Spa at Cedar Falls), Rockbridge — 8BR, sleeps up to 24, $1,099–$1,299/night → $4,400–$5,200 base ($5,500 all-in) for 4 nights.',
+      notes: [
+        'CMH beats CAK for every flying family, despite CAK being closer to Joe/Stef — better fares and more nonstop options.',
+        'GSP (Wendy/Mike’s #2 choice) actually undercuts CLT by ~$320 for the family — worth comparing both at booking time.',
+        'Lodging split evenly 6 ways above disproportionately burdens solo-traveler Jarrod; splitting per-person instead would drop his share to ≈$275 and raise Rylan’s family (6 pax) share — worth a group discussion.'
+      ],
+      families: [
+        {name:'Joe/Stef', pax:5, mode:'Drive', travel:65, lodging:917, total:982},
+        {name:'Rylan', pax:6, mode:'Fly · DEN', travel:1500, lodging:917, total:2417},
+        {name:'Nate', pax:2, mode:'Fly · ATL', travel:440, lodging:917, total:1357},
+        {name:'Wendy/Mike', pax:4, mode:'Fly · CLT', travel:1120, lodging:917, total:2037},
+        {name:'Garrett', pax:2, mode:'Fly · SAN', travel:670, lodging:917, total:1587},
+        {name:'Jarrod', pax:1, mode:'Fly · ABQ', travel:500, lodging:917, total:1417},
+      ]
+    },
+    {
+      id: 'keywest', name: 'Key West / Florida Keys, FL', shortName: 'Key West, FL', airport: 'MIA or FLL + drive (beats EYW direct)',
+      grandTotal: 13070, perPerson: 654, badge: null, badgeText: '',
+      headline: 'Fly into Miami/Ft. Lauderdale + rental car beats flying direct into tiny EYW, even after adding car costs.',
+      lodging: 'Flower Power House + Coco’s Poolside Retreat compound, Key West — sleeps 21, $1,300/night → $5,200 for 4 nights. (Marathon, the expected "budget Keys" alternative, actually priced higher — see notes.)',
+      notes: [
+        'Every family flies into MIA/FLL and drives ~3.5–4.5 hrs down US-1 — cost includes a rental car per family (~$400–650) on top of airfare.',
+        'Counterintuitive finding: Key West’s big-compound rental market (built for reunion/bachelor(ette) groups) is cheaper than Marathon or Islamorada for a property sleeping 20+ — the "drive further for cheaper lodging" assumption didn’t hold here.',
+        'Nate’s "possibly drivable" idea: Atlanta→Key West is ~14–15hrs each way. Gas is cheap (~$225 RT) but it eats 2 of your 4–5 vacation days — not realistic for this trip length.',
+        'Range across routing/property choices: $13,070–$14,470 ($654–$724/person).'
+      ],
+      families: [
+        {name:'Joe/Stef', pax:5, mode:'Fly·MIA/FLL + car', travel:1675, lodging:1300, total:2975},
+        {name:'Rylan', pax:6, mode:'Fly·MIA/FLL + car', travel:2150, lodging:1560, total:3710},
+        {name:'Nate', pax:2, mode:'Fly·MIA/FLL + car', travel:795, lodging:520, total:1315},
+        {name:'Wendy/Mike', pax:4, mode:'Fly·MIA/FLL + car', travel:1365, lodging:1040, total:2405},
+        {name:'Garrett', pax:2, mode:'Fly·MIA/FLL + car', travel:1145, lodging:520, total:1665},
+        {name:'Jarrod', pax:1, mode:'Fly·MIA/FLL + car', travel:740, lodging:260, total:1000},
+      ]
+    },
+    {
+      id: 'vegas', name: 'Las Vegas, NV', shortName: 'Las Vegas, NV', airport: 'LAS',
+      grandTotal: 13510, perPerson: 676, badge: null, badgeText: '',
+      headline: 'Different vibe: a private-pool group house vs. hotel rooms. House shown as primary (keeps everyone together); hotel-block is cheaper but splits the group.',
+      lodging: '7BD/5BA house w/ lazy river &amp; hot tub, Spring Valley — sleeps 26, $2,185/night → $8,740 for 4 nights (excludes cleaning fee + tax, add ≈15–25%). Cheaper alt: hotel room block ≈$6,000 total (≈$539/person) — excludes ≈13.4% room tax, and means separate rooms instead of one shared house.',
+      notes: [
+        'LAS is a major hub — cheapest and best-connected airport of any destination researched (e.g., Garrett’s SAN–LAS fare ≈$130 RT).',
+        'Cheapest airport isn’t always the preferred one: Joe/Stef save the most flying CLE instead of CAK; Wendy/Mike’s ATL option ties with CLT.',
+        'Budget-carrier fares (Frontier/Spirit/Allegiant/Breeze) drove some of the low fares — factor in bag fees for families with kids.'
+      ],
+      families: [
+        {name:'Joe/Stef', pax:5, mode:'Fly · CLE', travel:1400, lodging:2185, total:3585},
+        {name:'Rylan', pax:6, mode:'Fly · DEN', travel:1140, lodging:2622, total:3762},
+        {name:'Nate', pax:2, mode:'Fly · ATL', travel:580, lodging:874, total:1454},
+        {name:'Wendy/Mike', pax:4, mode:'Fly · ATL', travel:1160, lodging:1748, total:2908},
+        {name:'Garrett', pax:2, mode:'Fly · SAN', travel:260, lodging:874, total:1134},
+        {name:'Jarrod', pax:1, mode:'Fly · ABQ', travel:230, lodging:437, total:667},
+      ]
+    },
+    {
+      id: 'denver', name: 'Denver / Rocky Mountains, CO', shortName: 'Denver, CO', airport: 'DEN',
+      grandTotal: 13700, perPerson: 685, badge: null, badgeText: '',
+      headline: 'Rylan’s home turf. Best fit for the group’s cabin preference is a mountain lodge ~1.5hr away (Estes Park), not staying in Denver/Boulder proper.',
+      lodging: 'Rocky Creek Lodge, Estes Park — 9BR/8BA, sleeps 30 — ≈$1,917–2,100/night → ≈$8,400 for 4 nights. Budget alt: YMCA of the Rockies group cabin ≈$4,800–5,200/4 nights.',
+      notes: [
+        'Rylan drives ~1.5hrs from Denver to Estes Park (≈$40 gas for 2 vehicles) instead of flying.',
+        'Joe/Stef could save ~$675 as a family flying CLE instead of CAK ($340 vs $475/ticket).',
+        'Jarrod’s ABQ→Denver is also a plausible ~6–7hr drive if flying isn’t preferred.',
+        'Denver/Boulder-proper big rental houses were thinner in inventory and priced comparably (~$13,050–13,100 total) to the mountain-lodge plan, with less certain pricing.'
+      ],
+      families: [
+        {name:'Joe/Stef', pax:5, mode:'Fly · CAK', travel:2375, lodging:2100, total:4475},
+        {name:'Rylan', pax:6, mode:'Drive (local)', travel:40, lodging:2520, total:2560},
+        {name:'Nate', pax:2, mode:'Fly · ATL', travel:660, lodging:840, total:1500},
+        {name:'Wendy/Mike', pax:4, mode:'Fly · CLT', travel:1400, lodging:1680, total:3080},
+        {name:'Garrett', pax:2, mode:'Fly · SAN', travel:520, lodging:840, total:1360},
+        {name:'Jarrod', pax:1, mode:'Fly · ABQ', travel:300, lodging:420, total:720},
+      ]
+    },
+    {
+      id: 'branson', name: 'Branson / Table Rock Lake, MO', shortName: 'Branson, MO', airport: 'SGF (Springfield) — see note',
+      grandTotal: 14290, perPerson: 715, badge: null, badgeText: '',
+      headline: 'Costlier than expected: Branson’s own airport currently has no scheduled airline service.',
+      lodging: 'WaterMill Cove Resort, Table Rock Lake — 8BR lakefront lodge, sleeps 20 (matches the group almost exactly), $1,399–$1,699/night → $5,600–$6,800 for 4 nights.',
+      notes: [
+        'Branson Airport (BKG) has had no scheduled commercial service since Sun Country left in 2024 — its carrier history is a revolving door (AirTran, Southwest, Frontier, Via Air, Sun Country all came and went). Plan around Springfield (SGF), ~45–50min from Branson, instead.',
+        'CLT is genuinely Wendy/Mike’s best option here — it’s both their #1 preference and the only nonstop of their three choices.',
+        'Joe/Stef’s four Ohio airports are all within a similar band (~$340–430 RT) — pick whichever’s most convenient to drive to.'
+      ],
+      families: [
+        {name:'Joe/Stef', pax:5, mode:'Fly · CAK', travel:1800, lodging:1550, total:3350},
+        {name:'Rylan', pax:6, mode:'Fly · DEN', travel:2040, lodging:1860, total:3900},
+        {name:'Nate', pax:2, mode:'Fly · ATL', travel:720, lodging:620, total:1340},
+        {name:'Wendy/Mike', pax:4, mode:'Fly · CLT', travel:2040, lodging:1240, total:3280},
+        {name:'Garrett', pax:2, mode:'Fly · SAN', travel:1040, lodging:620, total:1660},
+        {name:'Jarrod', pax:1, mode:'Fly · ABQ', travel:450, lodging:310, total:760},
+      ]
+    },
+    {
+      id: 'obx', name: 'Outer Banks, NC', shortName: 'Outer Banks, NC', airport: 'ORF (Norfolk)',
+      grandTotal: 29959, perPerson: 1498, badge: 'warning', badgeText: 'Requires full-week booking',
+      headline: 'By far the priciest option — the large beach houses this group needs don’t rent for 4-5 nights in peak season.',
+      lodging: '"Eyes on the Horizon," Kill Devil Hills — 12BD/11.5BA, sleeps 24 — $24,995/week (peak). All three major OBX rental companies (Twiddy, Sun Realty, Village Realty) lock 10+ BR homes to mandatory Saturday-to-Saturday full-week bookings in peak season — there’s no way to book just 4-5 nights.',
+      notes: [
+        'Because the week is a fixed cost either way, consider simply extending the trip to the full week to get full value from the rental — the incremental nights are effectively "free" once you’re paying for the week.',
+        'Driving wins decisively for Joe/Stef (saves ~$850), Nate (saves ~$363), and Wendy/Mike (saves ~$1,128) vs. flying.',
+        'All-fly alternative (no driving) would push total travel cost from $4,964 to $7,311 — driving where practical saves the group ≈$2,350 on top of the lodging reality above.'
+      ],
+      families: [
+        {name:'Joe/Stef', pax:5, mode:'Drive', travel:194, lodging:6249, total:6443},
+        {name:'Rylan', pax:6, mode:'Fly · DEN', travel:3150, lodging:7499, total:10649},
+        {name:'Nate', pax:2, mode:'Drive', travel:173, lodging:2500, total:2673},
+        {name:'Wendy/Mike', pax:4, mode:'Drive', travel:112, lodging:4999, total:5111},
+        {name:'Garrett', pax:2, mode:'Fly · SAN', travel:860, lodging:2500, total:3360},
+        {name:'Jarrod', pax:1, mode:'Fly · ABQ', travel:475, lodging:1250, total:1725},
+      ]
+    },
+    {
+      id: 'sandiego', name: 'San Diego area, CA', shortName: 'San Diego, CA', airport: 'SAN',
+      grandTotal: 12555, perPerson: 628, badge: null, badgeText: '',
+      headline: 'Local for one family. Inland/value lodging shown as primary — beach-adjacent runs ≈2.6x more.',
+      lodging: 'Inland pick (Mt. Helix/El Cajon or Temecula wine country, 20–70 min from the beach) — 6-9BR, sleeps 20–22, ≈$1,400–1,700/night → ≈$5,600–6,800 for 4 nights. Beach-adjacent alternative (Mission Beach/Point Loma/La Jolla) runs ≈$2,500–4,500/night → ≈$10,000–18,000 for 4 nights (≈$1,058/person all-in) if the group wants to be steps from the sand.',
+      notes: [
+        'One family lives locally — negligible travel cost for them, just local gas.',
+        'GSP undercuts CLT by ≈$110/ticket for Wendy/Mike; worth comparing at booking time.',
+        'Some beach-adjacent properties require a 7-night Sat-Sat minimum in peak summer — confirm a 4-night stay is actually bookable before counting on that tier.'
+      ],
+      families: [
+        {name:'Joe/Stef', pax:5, mode:'Fly · CAK', travel:2150, lodging:1350, total:3500},
+        {name:'Rylan', pax:6, mode:'Fly · DEN', travel:1620, lodging:1620, total:3240},
+        {name:'Nate', pax:2, mode:'Fly · ATL', travel:1000, lodging:540, total:1540},
+        {name:'Wendy/Mike', pax:4, mode:'Fly · CLT', travel:1960, lodging:1080, total:3040},
+        {name:'Garrett', pax:2, mode:'Local', travel:25, lodging:540, total:565},
+        {name:'Jarrod', pax:1, mode:'Fly · ABQ', travel:400, lodging:270, total:670},
+      ]
+    },
+    {
+      id: 'santafe', name: 'Santa Fe, NM', shortName: 'Santa Fe, NM', airport: 'ABQ (hub) + SAF (limited, local)',
+      grandTotal: 12905, perPerson: 645, badge: null, badgeText: '',
+      headline: 'Local for one family (≈35-45min away). Mixed routing: most fly into the bigger Albuquerque hub, one family gets a direct nonstop into Santa Fe itself.',
+      lodging: 'Rancho Jacona, Pojoaque — 5 private adobe casitas (one per family) on one ranch, ≈$1,200/night combined → ≈$4,800 for 4 nights. Upscale in-town alternative (Dos Hermanas Compound, walk to the Plaza) runs ≈$12,000 for 4 nights.',
+      notes: [
+        'One family lives ≈35-45min away — no flight needed, just local gas.',
+        'Santa Fe Regional (SAF) has real but limited service (American Eagle, United Express, JSX) — only a Denver nonstop lines up well for this group; everyone else is better served by Albuquerque (ABQ), a full 8-airline hub about an hour’s drive away.',
+        'Switching the Denver family from SAF to ABQ too would save ≈$720 group-wide but adds an hour’s drive each way for them.'
+      ],
+      families: [
+        {name:'Joe/Stef', pax:5, mode:'Fly · ABQ', travel:2500, lodging:1263, total:3763},
+        {name:'Rylan', pax:6, mode:'Fly · SAF', travel:2400, lodging:1516, total:3916},
+        {name:'Nate', pax:2, mode:'Fly · ABQ', travel:840, lodging:505, total:1345},
+        {name:'Wendy/Mike', pax:4, mode:'Fly · ABQ', travel:1600, lodging:1011, total:2611},
+        {name:'Garrett', pax:2, mode:'Fly · ABQ', travel:740, lodging:505, total:1245},
+        {name:'Jarrod', pax:1, mode:'Local', travel:25, lodging:0, total:25},
+      ]
+    },
+    {
+      id: 'stowe', name: 'Stowe, VT', shortName: 'Stowe, VT', airport: 'BTV (Burlington)',
+      grandTotal: 17140, perPerson: 857, badge: null, badgeText: '',
+      headline: 'Nobody’s home turf, and a small airport means a few families connect. Large single-lodge inventory is thin — most properties top out well under 20 sleeps.',
+      lodging: 'Luxury lodge tier (e.g. a "Wander"-style curated rental), ≈$2,200/night → ≈$8,800 for 4 nights, sleeps in the high teens (may need a slight squeeze or an add-on unit for a full 20).',
+      notes: [
+        'Only Atlanta and Charlotte have reliable year-round nonstops to BTV; Denver is seasonal-nonstop; everyone else connects.',
+        'Switching Joe/Stef to CLE/PIT and Wendy/Mike to fly with Nate’s family out of ATL would save the group ≈$890 over the routing shown.',
+        'No one lives within a reasonable drive except the Ohio/PA cluster (≈9-12hrs) — this is a fly-only destination for the group.'
+      ],
+      families: [
+        {name:'Joe/Stef', pax:5, mode:'Fly · CAK', travel:2000, lodging:2200, total:4200},
+        {name:'Rylan', pax:6, mode:'Fly · DEN', travel:2460, lodging:2640, total:5100},
+        {name:'Nate', pax:2, mode:'Fly · ATL', travel:640, lodging:880, total:1520},
+        {name:'Wendy/Mike', pax:4, mode:'Fly · CLT', travel:1900, lodging:1760, total:3660},
+        {name:'Garrett', pax:2, mode:'Fly · SAN', travel:860, lodging:880, total:1740},
+        {name:'Jarrod', pax:1, mode:'Fly · ABQ', travel:480, lodging:440, total:920},
+      ]
+    },
+    {
+      id: 'barharbor', name: 'Bar Harbor / Acadia, ME', shortName: 'Bar Harbor, ME', airport: 'BGR or PWM (splits by family)',
+      grandTotal: 22110, perPerson: 1105, badge: 'warning', badgeText: 'Weekly minimums likely',
+      headline: 'Iconic scenery, but no single property sleeps 20+ — realistic plan is 2-3 combined cottages, and most large-property agencies book by the week even off peak.',
+      lodging: '2-cottage combo (e.g. two same-cluster Bar Harbor cottages), sleeps 26 combined, ≈$2,643/night combined → ≈$10,570 prorated for 4 nights, but budget for the full-week price (≈$18,500) since most agencies quote/book by the week in peak season.',
+      notes: [
+        'No family lives nearby — everyone flies, and each family optimizes independently between Bangor (BGR, closer to Bar Harbor) and Portland (PWM, more flight options, ≈3hr drive to Bar Harbor).',
+        'July is the priciest month found in this market, 2-3x over shoulder season — shifting toward mid-June (still inside the flexible window) could cut lodging cost substantially.',
+        '2027 rental calendars aren’t posted yet for this market; the best large properties often rebook with repeat guests before ever hitting public listings, so this is the one destination where getting on an agency’s list early matters most.'
+      ],
+      families: [
+        {name:'Joe/Stef', pax:5, mode:'Fly · PWM', travel:1750, lodging:3625, total:5375},
+        {name:'Rylan', pax:6, mode:'Fly · BGR', travel:2160, lodging:4350, total:6510},
+        {name:'Nate', pax:2, mode:'Fly · PWM', travel:780, lodging:1450, total:2230},
+        {name:'Wendy/Mike', pax:4, mode:'Fly · BGR', travel:1700, lodging:2900, total:4600},
+        {name:'Garrett', pax:2, mode:'Fly · BGR', travel:830, lodging:1450, total:2280},
+        {name:'Jarrod', pax:1, mode:'Fly · PWM', travel:390, lodging:725, total:1115},
+      ]
+    },
+  ];
+
+  const friends = [
+    {name:'Joe/Stef', home:'Louisville, OH', airports:'CAK, CMH, CLE, PIT', pax:5, passport:'Yes'},
+    {name:'Rylan', home:'Brighton, CO', airports:'DEN', pax:6, passport:'Yes'},
+    {name:'Nate', home:'Cordele, GA', airports:'ATL', pax:2, passport:'No'},
+    {name:'Wendy/Mike', home:'Augusta, GA', airports:'CLT, GSP, ATL', pax:4, passport:'Yes'},
+    {name:'Garrett', home:'San Diego, CA', airports:'SAN, TIJ', pax:2, passport:'Yes'},
+    {name:'Jarrod', home:'Los Alamos, NM', airports:'ABQ, SAF', pax:1, passport:'Unknown'},
+  ];
+
+  const fmt = n => '$' + Math.round(n).toLocaleString('en-US');
+  const sorted = [...destinations].sort((a,b) => a.perPerson - b.perPerson);
+  const AXIS_MAX = 1500;
+  const ticks = [0,250,500,750,1000,1250,1500];
+
+  // Gridlines + axis
+  const gridlinesEl = document.getElementById('gridlines');
+  const axisEl = document.getElementById('axisRow');
+  ticks.forEach(t => {
+    const pct = (t / AXIS_MAX) * 100;
+    const line = document.createElement('i');
+    line.style.left = pct + '%';
+    gridlinesEl.appendChild(line);
+    const label = document.createElement('span');
+    label.style.left = pct + '%';
+    label.textContent = '$' + t.toLocaleString('en-US');
+    axisEl.appendChild(label);
+  });
+
+  // Bars
+  const tooltip = document.getElementById('tooltip');
+  const barRows = document.getElementById('barRows');
+  sorted.forEach(d => {
+    const row = document.createElement('div');
+    row.className = 'bar-row';
+
+    const label = document.createElement('div');
+    label.className = 'bar-label';
+    label.textContent = d.shortName;
+    label.title = d.name + ' — ' + d.airport;
+    row.appendChild(label);
+
+    const track = document.createElement('div');
+    track.className = 'bar-track';
+    const fill = document.createElement('div');
+    fill.className = 'bar-fill';
+    const widthPct = (d.perPerson / AXIS_MAX) * 100;
+    fill.style.width = widthPct + '%';
+    fill.tabIndex = 0;
+    fill.setAttribute('role', 'img');
+    fill.setAttribute('aria-label', d.name + ': ' + fmt(d.perPerson) + ' per person, ' + fmt(d.grandTotal) + ' total');
+    track.appendChild(fill);
+
+    const value = document.createElement('span');
+    value.className = 'bar-value';
+    value.style.left = 'calc(' + widthPct + '% + 8px)';
+    value.textContent = fmt(d.perPerson);
+    if (d.badge === 'good') {
+      const b = document.createElement('span');
+      b.className = 'badge-good';
+      b.textContent = '✓ ' + d.badgeText;
+      value.appendChild(b);
+    }
+    track.appendChild(value);
+    row.appendChild(track);
+    barRows.appendChild(row);
+
+    const showTip = (evt) => {
+      tooltip.innerHTML = '';
+      const l1 = document.createElement('div');
+      l1.textContent = d.name;
+      const l2 = document.createElement('div');
+      l2.className = 'tt-value';
+      l2.textContent = fmt(d.perPerson) + ' / person';
+      const l3 = document.createElement('div');
+      l3.textContent = fmt(d.grandTotal) + ' total · ' + d.airport;
+      tooltip.appendChild(l1); tooltip.appendChild(l2); tooltip.appendChild(l3);
+      tooltip.classList.add('show');
+      positionTip(evt);
+    };
+    const positionTip = (evt) => {
+      const x = evt.clientX !== undefined ? evt.clientX : fill.getBoundingClientRect().right;
+      const y = evt.clientY !== undefined ? evt.clientY : fill.getBoundingClientRect().top;
+      tooltip.style.left = Math.min(x + 14, window.innerWidth - 236) + 'px';
+      tooltip.style.top = Math.max(y - 46, 8) + 'px';
+    };
+    const hideTip = () => tooltip.classList.remove('show');
+
+    fill.addEventListener('mousemove', showTip);
+    fill.addEventListener('mouseleave', hideTip);
+    fill.addEventListener('focus', showTip);
+    fill.addEventListener('blur', hideTip);
+  });
+
+  // Summary table
+  const summaryBody = document.querySelector('#summaryTable tbody');
+  sorted.forEach(d => {
+    const tr = document.createElement('tr');
+    const cells = [
+      d.name,
+      d.airport,
+      fmt(d.grandTotal),
+      fmt(d.perPerson),
+      d.headline
+    ];
+    cells.forEach((c, i) => {
+      const td = document.createElement('td');
+      if (i === 2 || i === 3) td.className = 'num';
+      if (i === 4) td.className = 'note-cell';
+      td.textContent = c;
+      tr.appendChild(td);
+    });
+    summaryBody.appendChild(tr);
+  });
+
+  // Destination accordion
+  const destList = document.getElementById('destinationList');
+  sorted.forEach((d, idx) => {
+    const det = document.createElement('details');
+    det.className = 'dest';
+    if (idx === 0) det.open = true;
+
+    const summary = document.createElement('summary');
+    summary.innerHTML =
+      '<span class="s-left"><span class="chevron">▸</span><span class="s-name"></span><span class="s-airport"></span></span>' +
+      '<span class="s-right"><span class="s-pp"></span><span class="s-total"></span></span>';
+    summary.querySelector('.s-name').textContent = d.name;
+    summary.querySelector('.s-airport').textContent = d.airport;
+    summary.querySelector('.s-pp').textContent = fmt(d.perPerson) + ' / person';
+    summary.querySelector('.s-total').textContent = fmt(d.grandTotal);
+    det.appendChild(summary);
+
+    const body = document.createElement('div');
+    body.className = 'dest-body';
+
+    const lodging = document.createElement('div');
+    lodging.className = 'lodging-pick';
+    lodging.innerHTML = '<strong>Lodging pick:</strong> ' + d.lodging;
+    body.appendChild(lodging);
+
+    const tableScroll = document.createElement('div');
+    tableScroll.className = 'table-scroll';
+    const table = document.createElement('table');
+    const thead = document.createElement('thead');
+    thead.innerHTML = '<tr><th>Family</th><th class="num">Pax</th><th>Mode</th><th class="num">Travel</th><th class="num">Lodging share</th><th class="num">Total</th><th class="num">Per person</th></tr>';
+    table.appendChild(thead);
+    const tbody = document.createElement('tbody');
+    d.families.forEach(f => {
+      const tr = document.createElement('tr');
+      const pp = Math.round(f.total / f.pax);
+      const rowVals = [f.name, f.pax, f.mode, fmt(f.travel), fmt(f.lodging), fmt(f.total), fmt(pp)];
+      rowVals.forEach((v, i) => {
+        const td = document.createElement('td');
+        if (i === 1 || i >= 3) td.className = 'num';
+        td.textContent = v;
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    tableScroll.appendChild(table);
+    body.appendChild(tableScroll);
+
+    if (d.badge === 'warning') {
+      const chip = document.createElement('div');
+      chip.className = 'warn-chip';
+      chip.textContent = '⚠ ' + d.badgeText;
+      body.appendChild(chip);
+    }
+
+    const ul = document.createElement('ul');
+    ul.className = 'notes';
+    d.notes.forEach(n => {
+      const li = document.createElement('li');
+      li.textContent = n;
+      ul.appendChild(li);
+    });
+    body.appendChild(ul);
+
+    det.appendChild(body);
+    destList.appendChild(det);
+  });
+
+  // Friends table
+  const friendsBody = document.querySelector('#friendsTable tbody');
+  friends.forEach(f => {
+    const tr = document.createElement('tr');
+    const vals = [f.name, f.home, f.airports, f.pax, f.passport];
+    vals.forEach((v, i) => {
+      const td = document.createElement('td');
+      if (i === 3) td.className = 'num';
+      td.textContent = v;
+      tr.appendChild(td);
+    });
+    friendsBody.appendChild(tr);
+  });
+</script>
+</body>
+</html>
