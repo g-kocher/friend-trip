@@ -95,39 +95,20 @@
   .kpi-tile .value { font-size: 22px; font-weight: 600; }
   .kpi-tile .subvalue { color: var(--text-muted); font-size: 12.5px; margin-top: 3px; }
 
-  /* Bar chart */
-  .chart-plot { position: relative; padding-left: 176px; padding-right: 60px; margin-top: 8px; }
-  .gridlines { position: absolute; left: 176px; right: 60px; top: 0; bottom: 26px; }
-  .gridlines i {
-    position: absolute; top: 0; bottom: 0; width: 1px; background: var(--gridline);
-  }
-  .axis-row { position: relative; height: 22px; margin-left: 176px; margin-right: 60px; }
-  .axis-row span {
-    position: absolute; transform: translateX(-50%); font-size: 11.5px; color: var(--text-muted);
-    font-variant-numeric: tabular-nums;
-  }
-  .bar-row { position: relative; display: flex; align-items: center; height: 34px; }
-  .bar-label {
-    position: absolute; left: -176px; width: 168px; font-size: 13px; color: var(--text-primary);
-    padding-right: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    cursor: default;
-  }
-  .bar-track { position: relative; height: 22px; width: 100%; }
-  .bar-fill {
-    position: absolute; left: 0; top: 0; height: 22px; background: var(--series-1);
-    border-radius: 0 4px 4px 0; cursor: pointer; outline-offset: 2px;
-    transition: filter 0.1s ease;
-  }
-  .bar-fill:hover, .bar-fill:focus-visible { filter: brightness(1.12); }
-  .bar-value {
-    position: absolute; top: 50%; transform: translateY(-50%); font-size: 12.5px;
-    font-weight: 600; color: var(--text-primary); white-space: nowrap;
-    font-variant-numeric: tabular-nums;
-  }
-  .badge-good {
-    display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600;
-    color: var(--success-text); margin-left: 8px;
-  }
+  /* Scatter: cost (x) vs. group top-3 support (y), bubble size = #1 picks. Position carries
+     both dimensions equally — there is no single sort order, so cost can't visually read as
+     "the" ranking the way a price-sorted bar list does. */
+  .scatter-wrap { margin-top: 12px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .scatter-wrap svg { width: 100%; height: auto; display: block; overflow: visible; min-width: 860px; }
+  .scatter-axis-label { font-size: 12px; fill: var(--text-muted); }
+  .scatter-tick { font-size: 11px; fill: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .scatter-gridline { stroke: var(--gridline); stroke-width: 1; }
+  .scatter-point { fill: var(--series-1); fill-opacity: 0.8; stroke: var(--surface-1); stroke-width: 2; pointer-events: none; transition: fill-opacity 0.08s ease; }
+  .scatter-point.is-active { fill-opacity: 1; }
+  .scatter-hit { fill: transparent; pointer-events: all; cursor: pointer; }
+  .scatter-hit:focus-visible { outline: 2px solid var(--series-1); outline-offset: 1px; }
+  .scatter-label { font-size: 12.5px; font-weight: 600; fill: var(--text-primary); text-anchor: middle; pointer-events: none; }
+  .scatter-legend { font-size: 12px; color: var(--text-muted); margin-top: 10px; }
 
   #tooltip {
     position: fixed; pointer-events: none; background: var(--text-primary); color: var(--page);
@@ -175,6 +156,10 @@
   }
   @media (prefers-color-scheme: dark) { .warn-chip { color: #ffce6b; } }
 
+  .subsection-label { color: var(--text-primary); font-size: 13.5px; font-weight: 600; margin: 18px 0 8px; }
+  .subsection-label:first-of-type { margin-top: 4px; }
+  ul.notes { margin: 10px 0 0; padding-left: 18px; font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+
   .timeline { display: flex; align-items: flex-start; position: relative; margin-top: 26px; }
   .timeline-step { position: relative; flex: 1; padding: 0 14px; text-align: left; }
   .timeline-step::before {
@@ -210,11 +195,6 @@
 
   @media (max-width: 720px) {
     .kpis { grid-template-columns: repeat(2, 1fr); }
-    .chart-plot { padding-left: 0; }
-    .gridlines, .axis-row { display: none; }
-    .bar-label { position: static; width: auto; margin-bottom: 4px; }
-    .bar-row { flex-direction: column; align-items: flex-start; height: auto; padding: 8px 0; gap: 4px; }
-    .bar-track { height: 20px; }
     details.dest > summary { flex-wrap: wrap; }
   }
 </style>
@@ -235,14 +215,14 @@
       <div class="subvalue" id="kpiCheapestValue">—</div>
     </div>
     <div class="kpi-tile">
-      <div class="label">Options compared</div>
-      <div class="value" id="kpiCount">—</div>
-      <div class="subvalue">destinations researched</div>
+      <div class="label">Group favorite</div>
+      <div class="value" id="kpiFavoriteName">—</div>
+      <div class="subvalue" id="kpiFavoriteValue">—</div>
     </div>
     <div class="kpi-tile">
-      <div class="label">Group size</div>
-      <div class="value">20 people</div>
-      <div class="subvalue">6 families</div>
+      <div class="label">Active shortlist</div>
+      <div class="value" id="kpiCount">—</div>
+      <div class="subvalue" id="kpiCountSub">—</div>
     </div>
     <div class="kpi-tile">
       <div class="label">Cost spread</div>
@@ -252,18 +232,17 @@
   </div>
 
   <div class="card">
-    <h2>Per-person cost, low to high</h2>
-    <p class="card-sub">Flights/driving + a shared group lodging pick, per destination. Hover or focus a bar for the breakdown. Outer Banks includes a mandatory full-week lodging rule — see below.</p>
-    <div class="chart-plot">
-      <div class="gridlines" id="gridlines"></div>
-      <div id="barRows"></div>
-      <div class="axis-row" id="axisRow"></div>
+    <h2>Cost vs. group enthusiasm</h2>
+    <p class="card-sub">The 7 destinations still standing after the group survey. Position is what matters, not sort order: left-to-right is per-person cost, bottom-to-top is how many of the 6 responses ranked it top-3. Bubble size is outright #1 picks. A cheap option low on the chart is inexpensive but not what people actually want; the best options sit toward the top. Hover or focus a point for the full breakdown. Outer Banks includes a mandatory full-week lodging rule — see below.</p>
+    <div class="scatter-wrap">
+      <svg id="scatterChart" viewBox="0 0 860 440" role="group" aria-label="Scatter chart of per-person cost versus group top-3 support for 7 candidate destinations. Use Tab to move between destinations."></svg>
     </div>
+    <p class="scatter-legend">● Bubble size = number of outright #1 picks (largest is Zion, UT with 3).</p>
   </div>
 
   <div class="card">
-    <h2>All options, side by side</h2>
-    <p class="card-sub">The table view of the chart above, with grand totals and the headline caveat for each.</p>
+    <h2>All remaining options, side by side</h2>
+    <p class="card-sub">The same 7 destinations from the chart above, ordered by group support (strongest top-3 showing first, not cheapest first), with grand totals and the headline caveat for each.</p>
     <div class="table-scroll">
     <table id="summaryTable">
       <thead>
@@ -272,12 +251,53 @@
           <th>Nearest airport(s)</th>
           <th class="num">Grand total</th>
           <th class="num">Per person</th>
+          <th>Support</th>
           <th>Headline note</th>
         </tr>
       </thead>
       <tbody></tbody>
     </table>
     </div>
+  </div>
+
+  <div class="card">
+    <h2>Group feedback — survey results</h2>
+    <p class="card-sub" id="surveyIntro">—</p>
+
+    <div class="kpis">
+      <div class="kpi-tile">
+        <div class="label">Consensus leader</div>
+        <div class="value" id="kpiLeaderName">—</div>
+        <div class="subvalue" id="kpiLeaderStats">—</div>
+      </div>
+      <div class="kpi-tile">
+        <div class="label">Strong second</div>
+        <div class="value" id="kpiSecondName">—</div>
+        <div class="subvalue" id="kpiSecondStats">—</div>
+      </div>
+      <div class="kpi-tile">
+        <div class="label">Cut after survey</div>
+        <div class="value" id="kpiCutCount">—</div>
+        <div class="subvalue">2+ vetoes, or 1 veto with no support</div>
+      </div>
+      <div class="kpi-tile">
+        <div class="label">Survey responses</div>
+        <div class="value" id="kpiResponses">—</div>
+        <div class="subvalue">a veto from anyone was treated as final</div>
+      </div>
+    </div>
+
+    <p class="card-sub">Per-destination support numbers are now shown together with cost in the chart and table above. This card covers what changed and what's still open.</p>
+
+    <p class="subsection-label">Removed from the set</p>
+    <ul class="notes" id="removedList"></ul>
+
+    <p class="subsection-label">Logistics notes from the group</p>
+    <ul class="notes">
+      <li>Budget came up as a real constraint, worth pinning down with the group before narrowing further.</li>
+      <li>There's a possible lead on a free 5-6 bedroom house in Maine, still unconfirmed — relevant if Bar Harbor advances.</li>
+      <li>Puerto Rico was flagged as needing more advance planning than the other options.</li>
+    </ul>
   </div>
 
   <div class="card">
@@ -325,19 +345,6 @@
   </div>
 
   <div class="card">
-    <h2>Friends &amp; travel preferences</h2>
-    <p class="card-sub">Source data — kept current in <code>friends_trip_2027_config.yaml</code>. Airports are listed most- to least-preferred.</p>
-    <div class="table-scroll">
-    <table id="friendsTable">
-      <thead>
-        <tr><th>Friend(s)</th><th>Home</th><th>Preferred airports</th><th class="num">Passengers</th><th>Passport</th></tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-    </div>
-  </div>
-
-  <div class="card">
     <footer class="methodology">
       <h2>Methodology &amp; assumptions</h2>
       <ul>
@@ -346,8 +353,9 @@
         <li><strong>Fee/tax consistency:</strong> most destinations' lodging figures include local occupancy tax and cleaning fees; Las Vegas and a couple of others explicitly exclude them (noted per destination) — actual gap could run 10–25% higher there.</li>
         <li><strong>Not included anywhere:</strong> food, activities/tickets, trip insurance, and rental cars except where a destination specifically requires one (noted).</li>
         <li><strong>Each family priced from its highest-preference airport</strong> unless a lower-preference airport was meaningfully cheaper or better-routed — flagged in that destination's detail card when relevant.</li>
+        <li><strong>Post-survey shortlist:</strong> a 6-response group survey narrowed the researched list from 16 to 7. A veto from anyone was treated as final — see Group feedback above for the full breakdown of what got cut and why.</li>
       </ul>
-      <div class="updated">Last updated 2026-07-18 · Next automatic refresh ≈ Aug 1, 2026 (monthly) · Source config: friends_trip_2027_config.yaml</div>
+      <div class="updated">Last updated 2026-07-20 · Next automatic refresh ≈ Aug 1, 2026 (monthly) · Source config: friends_trip_2027_config.yaml</div>
     </footer>
   </div>
 
@@ -360,7 +368,8 @@
   const destinations = [
     {
       id: 'smoky', name: 'Smoky Mountains, TN', shortName: 'Smoky Mountains, TN', airport: 'TYS (Knoxville) · alt AVL',
-      grandTotal: 7900, perPerson: 395, badge: 'good', badgeText: 'Cheapest option',
+      grandTotal: 7900, perPerson: 395, badge: null, badgeText: '',
+      status: 'active', survey: { vetoes: 0, top3: 2, numberOne: 1 },
       headline: 'Driving beats flying for 3 of 6 families — saves the group ~$2,800.',
       lodging: 'Roaring Fork Lodge, Gatlinburg — 6BR, sleeps 20, ≈$919/night → ≈$3,676 base (≈$4,700 all-in) for 4 nights. Huge, competitive large-cabin market in this area.',
       altLodging: { description: 'A Mountain Laurel Chalets-style cabin "neighborhood" — several individually-owned cabins on one shared street/cul-de-sac, sized to ~22-24. This market has by far the deepest walking-distance cluster inventory of any destination researched.', cost: 4200, verdict: 'Roughly comparable, maybe $500-800 cheaper — the safest fallback if the single-lodge pick falls through, since availability risk is lowest here.' },
@@ -379,7 +388,8 @@
     },
     {
       id: 'hocking', name: 'Hocking Hills, OH', shortName: 'Hocking Hills, OH', airport: 'CMH (Columbus)',
-      grandTotal: 9800, perPerson: 490, badge: 'good', badgeText: 'Anchor option',
+      grandTotal: 9800, perPerson: 490, badge: null, badgeText: '',
+      status: 'active', survey: { vetoes: 0, top3: 3, numberOne: 0 },
       headline: 'The original pick — Joe/Stef drive, everyone else has a direct or 1-stop flight to CMH.',
       lodging: 'Liberty Lodge (Inn &amp; Spa at Cedar Falls), Rockbridge — 8BR, sleeps up to 24, $1,099–$1,299/night → $4,400–$5,200 base ($5,500 all-in) for 4 nights.',
       altLodging: { description: 'A cluster of 3 cabins on one property (e.g. Tranquil Hills-style), ~22 combined sleeps — this market leans toward secluded single lots, so true walking-distance clusters are a narrower slice of inventory than the single-lodge market.', cost: 3700, verdict: 'Likely cheaper by roughly $1,500-2,000, but trades away Liberty Lodge\'s single shared great room/spa for 3 separate check-ins and cleaning fees.' },
@@ -398,49 +408,9 @@
       ]
     },
     {
-      id: 'keywest', name: 'Key West / Florida Keys, FL', shortName: 'Key West, FL', airport: 'MIA or FLL + drive (beats EYW direct)',
-      grandTotal: 13070, perPerson: 654, badge: null, badgeText: '',
-      headline: 'Fly into Miami/Ft. Lauderdale + rental car beats flying direct into tiny EYW, even after adding car costs.',
-      lodging: 'Flower Power House + Coco’s Poolside Retreat compound, Key West — sleeps 21, $1,300/night → $5,200 for 4 nights. (Marathon, the expected "budget Keys" alternative, actually priced higher — see notes.)',
-      altLodging: { description: '3 standalone Old Town conch cottages a few blocks apart, instead of the current 2-house compound.', cost: 7000, verdict: 'Roughly comparable, maybe modestly pricier ($1,200-2,400) — the current 2-house compound already captures most of the multi-property benefit at a better price than going to 3-4 fully independent bookings.' },
-      notes: [
-        'Every family flies into MIA/FLL and drives ~3.5–4.5 hrs down US-1 — cost includes a rental car per family (~$400–650) on top of airfare.',
-        'Counterintuitive finding: Key West’s big-compound rental market (built for reunion/bachelor(ette) groups) is cheaper than Marathon or Islamorada for a property sleeping 20+ — the "drive further for cheaper lodging" assumption didn’t hold here.',
-        'Nate’s "possibly drivable" idea: Atlanta→Key West is ~14–15hrs each way. Gas is cheap (~$225 RT) but it eats 2 of your 4–5 vacation days — not realistic for this trip length.',
-        'Range across routing/property choices: $13,070–$14,470 ($654–$724/person).'
-      ],
-      families: [
-        {name:'Joe/Stef', pax:5, mode:'Fly·MIA/FLL + car', travel:1675, lodging:1300, total:2975},
-        {name:'Rylan', pax:6, mode:'Fly·MIA/FLL + car', travel:2150, lodging:1560, total:3710},
-        {name:'Nate', pax:2, mode:'Fly·MIA/FLL + car', travel:795, lodging:520, total:1315},
-        {name:'Wendy/Mike', pax:4, mode:'Fly·MIA/FLL + car', travel:1365, lodging:1040, total:2405},
-        {name:'Garrett', pax:2, mode:'Fly·MIA/FLL + car', travel:1145, lodging:520, total:1665},
-        {name:'Jarrod', pax:1, mode:'Fly·MIA/FLL + car', travel:740, lodging:260, total:1000},
-      ]
-    },
-    {
-      id: 'vegas', name: 'Las Vegas, NV', shortName: 'Las Vegas, NV', airport: 'LAS',
-      grandTotal: 13510, perPerson: 676, badge: null, badgeText: '',
-      headline: 'Different vibe: a private-pool group house vs. hotel rooms. House shown as primary (keeps everyone together); hotel-block is cheaper but splits the group.',
-      lodging: '7BD/5BA house w/ lazy river &amp; hot tub, Spring Valley — sleeps 26, $2,185/night → $8,740 for 4 nights (excludes cleaning fee + tax, add ≈15–25%). Cheaper alt: hotel room block ≈$6,000 total (≈$539/person) — excludes ≈13.4% room tax, and means separate rooms instead of one shared house.',
-      altLodging: { description: '3 separate pool/hot-tub houses in Spring Valley — plenty of raw inventory, though most Clark County short-term rentals (including the current pick) sit in the same unsettled regulatory zone.', cost: 6400, verdict: 'Likely cheaper by roughly $1,500-3,500 — but trades the lazy river\'s single shared hangout space for 3 separate pools.' },
-      notes: [
-        'LAS is a major hub — cheapest and best-connected airport of any destination researched (e.g., Garrett’s SAN–LAS fare ≈$130 RT).',
-        'Cheapest airport isn’t always the preferred one: Joe/Stef save the most flying CLE instead of CAK; Wendy/Mike’s ATL option ties with CLT.',
-        'Budget-carrier fares (Frontier/Spirit/Allegiant/Breeze) drove some of the low fares — factor in bag fees for families with kids.'
-      ],
-      families: [
-        {name:'Joe/Stef', pax:5, mode:'Fly · CLE', travel:1400, lodging:2185, total:3585},
-        {name:'Rylan', pax:6, mode:'Fly · DEN', travel:1140, lodging:2622, total:3762},
-        {name:'Nate', pax:2, mode:'Fly · ATL', travel:580, lodging:874, total:1454},
-        {name:'Wendy/Mike', pax:4, mode:'Fly · ATL', travel:1160, lodging:1748, total:2908},
-        {name:'Garrett', pax:2, mode:'Fly · SAN', travel:260, lodging:874, total:1134},
-        {name:'Jarrod', pax:1, mode:'Fly · ABQ', travel:230, lodging:437, total:667},
-      ]
-    },
-    {
       id: 'denver', name: 'Denver / Rocky Mountains, CO', shortName: 'Denver, CO', airport: 'DEN',
       grandTotal: 13700, perPerson: 685, badge: null, badgeText: '',
+      status: 'active', survey: { vetoes: 0, top3: 2, numberOne: 0 },
       headline: 'Rylan’s home turf. Best fit for the group’s cabin preference is a mountain lodge ~1.5hr away (Estes Park), not staying in Denver/Boulder proper.',
       lodging: 'Rocky Creek Lodge, Estes Park — 9BR/8BA, sleeps 30 — ≈$1,917–2,100/night → ≈$8,400 for 4 nights. Budget alt: YMCA of the Rockies group cabin ≈$4,800–5,200/4 nights.',
       altLodging: { description: '3 separate homes in an Estes Park vacation-home subdivision (Fish Creek, Carriage Hills, or the YMCA of the Rockies cabin grounds), ~22-24 combined.', cost: 9500, verdict: 'Roughly comparable, maybe a bit pricier ($100-2,000) — but draws from a much deeper inventory pool than one specific 30-sleep property, so it may be easier to actually book for a specific week.' },
@@ -460,28 +430,9 @@
       ]
     },
     {
-      id: 'branson', name: 'Branson / Table Rock Lake, MO', shortName: 'Branson, MO', airport: 'SGF (Springfield) — see note',
-      grandTotal: 14290, perPerson: 715, badge: null, badgeText: '',
-      headline: 'Costlier than expected: Branson’s own airport currently has no scheduled airline service.',
-      lodging: 'WaterMill Cove Resort, Table Rock Lake — 8BR lakefront lodge, sleeps 20 (matches the group almost exactly), $1,399–$1,699/night → $5,600–$6,800 for 4 nights.',
-      altLodging: { description: 'A resort-cluster combo (e.g. Chalets on Table Rock Lake) — one 6BR lodge plus two 4BR villas on one resort footprint, ~22-24 combined.', cost: 4700, verdict: 'Likely cheaper by roughly $1,000-2,000, but trades away WaterMill Cove\'s true lakefront access — most clusters here sit near the lake rather than directly on it.' },
-      notes: [
-        'Branson Airport (BKG) has had no scheduled commercial service since Sun Country left in 2024 — its carrier history is a revolving door (AirTran, Southwest, Frontier, Via Air, Sun Country all came and went). Plan around Springfield (SGF), ~45–50min from Branson, instead.',
-        'CLT is genuinely Wendy/Mike’s best option here — it’s both their #1 preference and the only nonstop of their three choices.',
-        'Joe/Stef’s four Ohio airports are all within a similar band (~$340–430 RT) — pick whichever’s most convenient to drive to.'
-      ],
-      families: [
-        {name:'Joe/Stef', pax:5, mode:'Fly · CAK', travel:1800, lodging:1550, total:3350},
-        {name:'Rylan', pax:6, mode:'Fly · DEN', travel:2040, lodging:1860, total:3900},
-        {name:'Nate', pax:2, mode:'Fly · ATL', travel:720, lodging:620, total:1340},
-        {name:'Wendy/Mike', pax:4, mode:'Fly · CLT', travel:2040, lodging:1240, total:3280},
-        {name:'Garrett', pax:2, mode:'Fly · SAN', travel:1040, lodging:620, total:1660},
-        {name:'Jarrod', pax:1, mode:'Fly · ABQ', travel:450, lodging:310, total:760},
-      ]
-    },
-    {
       id: 'obx', name: 'Outer Banks, NC', shortName: 'Outer Banks, NC', airport: 'ORF (Norfolk)',
       grandTotal: 29959, perPerson: 1498, badge: 'warning', badgeText: 'Requires full-week booking',
+      status: 'active', survey: { vetoes: 0, top3: 2, numberOne: 0 },
       headline: 'By far the priciest option — the large beach houses this group needs don’t rent for 4-5 nights in peak season.',
       lodging: '"Eyes on the Horizon," Kill Devil Hills — 12BD/11.5BA, sleeps 24 — $24,995/week (peak). All three major OBX rental companies (Twiddy, Sun Realty, Village Realty) lock 10+ BR homes to mandatory Saturday-to-Saturday full-week bookings in peak season — there’s no way to book just 4-5 nights.',
       altLodging: { description: '3 separate Kill Devil Hills-area houses on the same street (property managers like KEES explicitly sell these as same-street groupings).', cost: 23000, verdict: 'Roughly comparable (within about $4,000) — and critically, does NOT avoid the mandatory Saturday-to-Saturday full-week booking rule, which is island-wide and applies regardless of house size. Splitting up doesn\'t fix OBX\'s core cost driver.' },
@@ -502,6 +453,7 @@
     {
       id: 'sandiego', name: 'San Diego area, CA', shortName: 'San Diego, CA', airport: 'SAN',
       grandTotal: 12555, perPerson: 628, badge: null, badgeText: '',
+      status: 'active', survey: { vetoes: 0, top3: 1, numberOne: 1 },
       headline: 'Local for one family. Inland/value lodging shown as primary — beach-adjacent runs ≈2.6x more.',
       lodging: 'Inland pick (Mt. Helix/El Cajon or Temecula wine country, 20–70 min from the beach) — 6-9BR, sleeps 20–22, ≈$1,400–1,700/night → ≈$5,600–6,800 for 4 nights. Beach-adjacent alternative (Mission Beach/Point Loma/La Jolla) runs ≈$2,500–4,500/night → ≈$10,000–18,000 for 4 nights (≈$1,058/person all-in) if the group wants to be steps from the sand.',
       altLodging: { description: '3 separate properties on Mission Beach\'s Ocean Front Walk, one of San Diego\'s densest walkable rental strips — trading the current 30-40min inland commute for steps-to-sand.', cost: 12000, verdict: 'Notably pricier, by roughly $5,000-6,500 total (~$250-325/person) — a genuine lifestyle upgrade, not a cost-saving alternative. Confirms the inland pick as the budget-first choice.' },
@@ -520,48 +472,9 @@
       ]
     },
     {
-      id: 'santafe', name: 'Santa Fe, NM', shortName: 'Santa Fe, NM', airport: 'ABQ (hub) + SAF (limited, local)',
-      grandTotal: 12905, perPerson: 645, badge: null, badgeText: '',
-      headline: 'Local for one family (≈35-45min away). Mixed routing: most fly into the bigger Albuquerque hub, one family gets a direct nonstop into Santa Fe itself.',
-      lodging: 'Rancho Jacona, Pojoaque — 5 private adobe casitas (one per family) on one ranch, ≈$1,200/night combined → ≈$4,800 for 4 nights. Upscale in-town alternative (Dos Hermanas Compound, walk to the Plaza) runs ≈$12,000 for 4 nights.',
-      altLodging: { description: 'Rancho Jacona (the current pick) already IS this model — 5 separately-priced casitas, one per family, sharing one ranch\'s grounds.', cost: null, verdict: 'No real alternative to chase here — fully independent in-town casitas from different owners are scattered rather than clustered and typically cost the same or more, with more coordination risk.' },
-      notes: [
-        'One family lives ≈35-45min away — no flight needed, just local gas.',
-        'Santa Fe Regional (SAF) has real but limited service (American Eagle, United Express, JSX) — only a Denver nonstop lines up well for this group; everyone else is better served by Albuquerque (ABQ), a full 8-airline hub about an hour’s drive away.',
-        'Switching the Denver family from SAF to ABQ too would save ≈$720 group-wide but adds an hour’s drive each way for them.'
-      ],
-      families: [
-        {name:'Joe/Stef', pax:5, mode:'Fly · ABQ', travel:2500, lodging:1263, total:3763},
-        {name:'Rylan', pax:6, mode:'Fly · SAF', travel:2400, lodging:1516, total:3916},
-        {name:'Nate', pax:2, mode:'Fly · ABQ', travel:840, lodging:505, total:1345},
-        {name:'Wendy/Mike', pax:4, mode:'Fly · ABQ', travel:1600, lodging:1011, total:2611},
-        {name:'Garrett', pax:2, mode:'Fly · ABQ', travel:740, lodging:505, total:1245},
-        {name:'Jarrod', pax:1, mode:'Local', travel:25, lodging:0, total:25},
-      ]
-    },
-    {
-      id: 'stowe', name: 'Stowe, VT', shortName: 'Stowe, VT', airport: 'BTV (Burlington)',
-      grandTotal: 17140, perPerson: 857, badge: null, badgeText: '',
-      headline: 'Nobody’s home turf, and a small airport means a few families connect. Large single-lodge inventory is thin — most properties top out well under 20 sleeps.',
-      lodging: 'Luxury lodge tier (e.g. a "Wander"-style curated rental), ≈$2,200/night → ≈$8,800 for 4 nights, sleeps in the high teens (may need a slight squeeze or an add-on unit for a full 20).',
-      altLodging: { description: '3-4 separate 4-5BR houses loosely along the Mountain Road corridor — Stowe\'s rental stock is standalone houses on large lots, not a walkable colony, so "walking distance" is optimistic here.', cost: 10000, verdict: 'Roughly comparable, maybe $500-2,000 pricier — but it does fix a real problem: the current lodge only sleeps "high teens," a genuine squeeze for 20-24 people that this option solves with real beds for everyone.' },
-      notes: [
-        'Only Atlanta and Charlotte have reliable year-round nonstops to BTV; Denver is seasonal-nonstop; everyone else connects.',
-        'Switching Joe/Stef to CLE/PIT and Wendy/Mike to fly with Nate’s family out of ATL would save the group ≈$890 over the routing shown.',
-        'No one lives within a reasonable drive except the Ohio/PA cluster (≈9-12hrs) — this is a fly-only destination for the group.'
-      ],
-      families: [
-        {name:'Joe/Stef', pax:5, mode:'Fly · CAK', travel:2000, lodging:2200, total:4200},
-        {name:'Rylan', pax:6, mode:'Fly · DEN', travel:2460, lodging:2640, total:5100},
-        {name:'Nate', pax:2, mode:'Fly · ATL', travel:640, lodging:880, total:1520},
-        {name:'Wendy/Mike', pax:4, mode:'Fly · CLT', travel:1900, lodging:1760, total:3660},
-        {name:'Garrett', pax:2, mode:'Fly · SAN', travel:860, lodging:880, total:1740},
-        {name:'Jarrod', pax:1, mode:'Fly · ABQ', travel:480, lodging:440, total:920},
-      ]
-    },
-    {
       id: 'barharbor', name: 'Bar Harbor / Acadia, ME', shortName: 'Bar Harbor, ME', airport: 'BGR or PWM (splits by family)',
       grandTotal: 22110, perPerson: 1105, badge: 'warning', badgeText: 'Weekly minimums likely',
+      status: 'active', survey: { vetoes: 1, top3: 2, numberOne: 0 },
       headline: 'Iconic scenery, but no single property sleeps 20+ — realistic plan is 2-3 combined cottages, and most large-property agencies book by the week even off peak.',
       lodging: '2-cottage combo (e.g. two same-cluster Bar Harbor cottages), sleeps 26 combined, ≈$2,643/night combined → ≈$10,570 prorated for 4 nights, but budget for the full-week price (≈$18,500) since most agencies quote/book by the week in peak season.',
       altLodging: { description: '3-4 smaller in-town cottages instead of the current 2 larger ones — Bar Harbor\'s market genuinely clusters, unlike Stowe\'s.', cost: 15000, verdict: 'Roughly comparable to modestly cheaper (~$1,000-2,500) — but doesn\'t solve any real problem, since the current pick already sleeps 26, and the same full-week peak-season booking requirement applies no matter how many cottages are involved.' },
@@ -582,6 +495,7 @@
     {
       id: 'zion', name: 'Zion National Park, UT', shortName: 'Zion, UT', airport: 'LAS (Las Vegas) + 2.5-3hr drive',
       grandTotal: 8751, perPerson: 438, badge: null, badgeText: '',
+      status: 'active', survey: { vetoes: 0, top3: 4, numberOne: 3 },
       headline: 'Everyone routes through Vegas, and driving wins big for the two Western families — a shared van for the Vegas-Springdale leg is folded into the numbers below.',
       lodging: '5BR/6BA private-pool home near St. George/Hurricane (≈45 min from Zion), sleeps 24 — ≈$350/night → ≈$2,170 for 4 nights, plus a shared rental van/SUV for the 4 flying families\' 2.5–3hr LAS→Springdale leg (≈$1,800, included in the travel figures below).',
       altLodging: { description: '3 adjoining townhomes at Ocotillo Springs Resort, Santa Clara — a gated community that markets connected units sharing a pool/hot tub, combined sleeps ~22.', total: 11692, perPerson: 585, verdict: '≈$147/person more than the single-house pick — three kitchens and cleaning fees cost more than one big house\'s bulk rate.' },
@@ -599,161 +513,149 @@
         {name:'Jarrod', pax:1, mode:'Fly · ABQ', travel:521, lodging:109, total:630},
       ]
     },
-    {
-      id: 'kelleys', name: "Kelleys Island, OH", shortName: "Kelleys Island, OH", airport: 'CLE (Cleveland) + ferry',
-      grandTotal: 13065, perPerson: 653, badge: null, badgeText: '',
-      headline: 'Cheap to reach for the one family close enough to drive, but the island simply has no 20-person property — a 3-cottage cluster is the realistic model, not an "alternative."',
-      lodging: '3 adjoining cottages at the "Great Escape" complex (Simply Kelleys Resort) — Great Escape Home (12), West (4) and East (4), all next door to each other, combined sleeps exactly 20. ≈$7,200 for 4 nights.',
-      altLodging: { description: 'A single lakefront property (Sunsets & Suds, sleeps 16) plus a bolted-on overflow unit to reach 20 — the closest thing to a "single property" this market has, since no genuine 20+ listing exists on the island.', total: 16565, perPerson: 828, verdict: '≈$175/person more, for a compromise that still isn\'t really one property — the 3-cottage cluster is both cheaper and more genuine here.' },
-      notes: [
-        'Aggregator sites show huge "Kelleys Island" listings (13BR+) — these are almost always mainland Marblehead/Catawba Island properties bundled into the search, not real on-island bookings. Genuine island listings cap at 16 guests.',
-        'Ferry (Kelleys Island Ferry Boat Line, ~$26/adult RT) plus a rental car for the 79-126mi airport-to-dock leg are folded into the flying families\' travel costs; golf carts (~$300-500 total) for getting around the ~4 sq mi island once there are not.',
-        'Joe/Stef can drive the whole way door-to-door (~2hr) and skip flying entirely — by far the cheapest family here.'
-      ],
-      families: [
-        {name:'Joe/Stef', pax:5, mode:'Drive + ferry', travel:185, lodging:1800, total:1985},
-        {name:'Rylan', pax:6, mode:'Fly · DEN + ferry', travel:1986, lodging:2160, total:4146},
-        {name:'Nate', pax:2, mode:'Fly · ATL + ferry', travel:602, lodging:720, total:1322},
-        {name:'Wendy/Mike', pax:4, mode:'Fly · CLT + ferry', travel:1534, lodging:1440, total:2974},
-        {name:'Garrett', pax:2, mode:'Fly · SAN + ferry', travel:1002, lodging:720, total:1722},
-        {name:'Jarrod', pax:1, mode:'Fly · ABQ + ferry', travel:556, lodging:360, total:916},
-      ]
-    },
-    {
-      id: 'pacificgrove', name: 'Pacific Grove, CA', shortName: 'Pacific Grove, CA', airport: 'SJC (San Jose), some SFO',
-      grandTotal: 20920, perPerson: 1046, badge: null, badgeText: '',
-      headline: 'One of the pricier stops even at its cheaper lodging option — Monterey Peninsula coastal pricing, plus a local ordinance that pushes big single properties out of town.',
-      lodging: '4 separate 3-4BR cottages in the walkable central Pacific Grove grid near Lighthouse Ave/Lovers Point, combined sleeps ~20-22. ≈$650/night per property → ≈$12,880 for 4 nights incl. ≈12% coastal CA lodging tax.',
-      altLodging: { description: 'A single 7-8BR trophy estate in Pebble Beach/Del Monte Forest or Carmel (5-10min drive, not walk) — the realistic version of a true 20+-sleeper here, since Pacific Grove\'s Measure M restricts large whole-house rentals in town.', total: 28984, perPerson: 1449, verdict: '≈$400/person more — trophy coastal estates carry a steep per-guest premium over ordinary cottages; splitting is the budget-first move here, not a compromise.' },
-      notes: [
-        'Measure M caps/restricts whole-house short-term rentals in Pacific Grove\'s residential zones, which is exactly why the split-cottage option is both cheaper AND the more "in-town-legal" pick.',
-        'Joe/Stef\'s and Jarrod\'s first-choice airports are traps here — Akron-Canton (CAK) has no useful westbound connectivity and Santa Fe (SAF) is pricier/thinner than ABQ; use CLE and ABQ instead.',
-        'Garrett can drive the whole way (~7.7hr) for a fraction of the flight cost. Rylan\'s family is a genuine toss-up: Denver has a Monterey (MRY) nonstop for only ~$35-50/person more than flying into San Jose and driving.'
-      ],
-      families: [
-        {name:'Joe/Stef', pax:5, mode:'Fly · CLE', travel:2150, lodging:3220, total:5370},
-        {name:'Rylan', pax:6, mode:'Fly · DEN', travel:2490, lodging:3864, total:6354},
-        {name:'Nate', pax:2, mode:'Fly · ATL', travel:820, lodging:1288, total:2108},
-        {name:'Wendy/Mike', pax:4, mode:'Fly · CLT', travel:2000, lodging:2576, total:4576},
-        {name:'Garrett', pax:2, mode:'Drive', travel:170, lodging:1288, total:1458},
-        {name:'Jarrod', pax:1, mode:'Fly · ABQ', travel:410, lodging:644, total:1054},
-      ]
-    },
-    {
-      id: 'clearcreek', name: 'Clear Creek State Park, PA', shortName: 'Clear Creek SP, PA', airport: 'PIT (Pittsburgh) + 2hr drive',
-      grandTotal: 9130, perPerson: 457, badge: 'warning', badgeText: 'Full-week booking risk',
-      headline: 'Cheap flights into Pittsburgh, but rural cabin-market booking norms are the real wildcard — could roughly double the lodging cost if a 4-night stay isn\'t bookable.',
-      lodging: 'Two ~12-person lodges near Sigel/Cook Forest (comparable to Copper Kettle Lodge) — not literally one building, since no true single 20-24 property exists in this area. ≈$900/night combined → ≈$3,600 for 4 nights.',
-      altLodging: { description: 'A 4-cabin colony (Cook Riverside Cabins-style, on the Clarion River in Cooksburg), combined sleeps ~24.', total: 10010, perPerson: 501, verdict: '≈$44/person more than the 2-lodge pick — a real cabin-colony product rather than a constructed 2-lodge proxy, at a modest premium.' },
-      notes: [
-        'Both the state park\'s own cabins and the major private cabin colonies nearby commonly require full Saturday-to-Saturday week bookings in peak season (mid-June through August) — the representative Thu-Mon dates used for costing don\'t fit that pattern, and real booking may mean paying for 7 nights instead of 4.',
-        'Joe/Stef can drive the whole way (~2h45m) — by far the cheapest family. Everyone else is 500+ miles out and flies into PIT, then drives ~2hrs; rental cars for that leg are folded into the travel figures below.',
-        'PIT beats the geographically-closer DuBois (DUJ) airport, which currently only has 9-seat Essential Air Service flights — not workable for a group this size.'
-      ],
-      families: [
-        {name:'Joe/Stef', pax:5, mode:'Drive', travel:50, lodging:900, total:950},
-        {name:'Rylan', pax:6, mode:'Fly · DEN', travel:2040, lodging:1080, total:3120},
-        {name:'Nate', pax:2, mode:'Fly · ATL', travel:700, lodging:360, total:1060},
-        {name:'Wendy/Mike', pax:4, mode:'Fly · CLT', travel:1120, lodging:720, total:1840},
-        {name:'Garrett', pax:2, mode:'Fly · SAN', travel:960, lodging:360, total:1320},
-        {name:'Jarrod', pax:1, mode:'Fly · ABQ', travel:660, lodging:180, total:840},
-      ]
-    },
-    {
-      id: 'puertorico', name: 'Puerto Rico (San Juan metro)', shortName: 'Puerto Rico', airport: 'SJU (San Juan)',
-      grandTotal: 16054, perPerson: 803, badge: null, badgeText: '',
-      headline: 'No passport needed — it\'s a US territory, so this is domestic air travel despite feeling like an international trip. Fly-only for everyone; a walkable 4-condo cluster edges out a single mega-villa.',
-      lodging: '4 separate condos on Condado\'s Ashford Ave beachfront strip, combined sleeps 24 — ≈$1,550/night combined → ≈$6,200 for 4 nights + 7% PR room tax ≈$6,634.',
-      altLodging: { description: 'A single 6BR/5BA private-pool villa in Condado, a 12-min walk to the beach, sleeps 24.', total: 16876, perPerson: 844, verdict: '≈$41/person more than the split-condo pick — close enough that either works; the villa wins on one shared pool, the condos win slightly on price.' },
-      notes: [
-        'Confirmed: no passport required for US citizens — Puerto Rico is a US territory and this is domestic air travel (REAL ID/state ID only), same as flying to Hawaii or Alaska.',
-        'Hurricane season (June-November) overlaps this trip\'s target window. July is on the lower-activity end of the season, but worth a travel-insurance policy with weather/cancellation coverage bought well ahead of the date — not a reason to avoid the destination.',
-        'No family lives nearby, so everyone flies. Garrett (San Diego) is the outlier at $650/person round-trip — no nonstop exists from SAN, and it\'s the longest connecting itinerary of the group. Nate (ATL), Wendy/Mike (CLT), and Rylan (DEN) all have real nonstops.'
-      ],
-      families: [
-        {name:'Joe/Stef', pax:5, mode:'Fly · CAK (1-stop)', travel:2350, lodging:1659, total:4009},
-        {name:'Rylan', pax:6, mode:'Fly · DEN', travel:2700, lodging:1990, total:4690},
-        {name:'Nate', pax:2, mode:'Fly · ATL', travel:800, lodging:663, total:1463},
-        {name:'Wendy/Mike', pax:4, mode:'Fly · CLT', travel:1720, lodging:1327, total:3047},
-        {name:'Garrett', pax:2, mode:'Fly · SAN (1-stop)', travel:1300, lodging:663, total:1963},
-        {name:'Jarrod', pax:1, mode:'Fly · ABQ (1-stop)', travel:550, lodging:332, total:882},
-      ]
-    },
   ];
 
-  const friends = [
-    {name:'Joe/Stef', home:'Louisville, OH', airports:'CAK, CMH, CLE, PIT', pax:5, passport:'Yes'},
-    {name:'Rylan', home:'Brighton, CO', airports:'DEN', pax:6, passport:'Yes'},
-    {name:'Nate', home:'Cordele, GA', airports:'ATL', pax:2, passport:'No'},
-    {name:'Wendy/Mike', home:'Augusta, GA', airports:'CLT, GSP, ATL', pax:4, passport:'Yes'},
-    {name:'Garrett', home:'San Diego, CA', airports:'SAN, TIJ', pax:2, passport:'Yes'},
-    {name:'Jarrod', home:'Los Alamos, NM', airports:'ABQ, SAF', pax:1, passport:'Unknown'},
+  // Destinations cut entirely after the 2026-07-20 group survey (vetoed with no offsetting
+  // support, or no support at all) — kept here only so "Removed from the set" can list them;
+  // they carry no cost data anymore since they're out of the running.
+  // Destinations cut entirely after the 2026-07-20 group survey — kept here only so
+  // "Removed from the set" can list them; they carry no cost data since they're out of
+  // the running. Rule applied: 2+ vetoes is cut regardless of any support it also had
+  // (Key West, Puerto Rico); 1 veto is cut only if it also had zero other support.
+  const removedDestinations = [
+    { name: 'Clear Creek State Park, PA', reason: 'no vetoes, but also zero top-3 support' },
+    { name: 'Kelleys Island, OH', reason: 'no vetoes, but also zero top-3 support' },
+    { name: 'Stowe, VT', reason: 'no vetoes, but also zero top-3 support' },
+    { name: 'Pacific Grove, CA', reason: 'no vetoes, but also zero top-3 support' },
+    { name: 'Santa Fe, NM', reason: '1 veto and zero other support' },
+    { name: 'Las Vegas, NV', reason: '1 veto and zero other support' },
+    { name: 'Branson, MO', reason: '1 veto and zero other support' },
+    { name: 'Key West, FL', reason: '2 vetoes (tied for the most of any destination) — cut regardless of its top-3 mention and #1 vote' },
+    { name: 'Puerto Rico', reason: '2 vetoes (tied for the most of any destination) — cut regardless of its top-3 mention' },
   ];
+  const SURVEY_RESPONSES = 6;
+  const TOTAL_RESEARCHED = destinations.length + removedDestinations.length;
 
   const fmt = n => '$' + Math.round(n).toLocaleString('en-US');
   const sorted = [...destinations].sort((a,b) => a.perPerson - b.perPerson);
-  const AXIS_MAX = 1500;
-  const ticks = [0,250,500,750,1000,1250,1500];
+  // Top-3 support is the primary signal (matches how the group's own read of the results
+  // ranked things — Hocking Hills is the "strong second" on breadth of support despite
+  // having zero #1 votes); #1 picks and name are just tiebreakers. Drives the "Group favorite"
+  // KPI below, the summary table order, and the destination accordion order.
+  const bySupport = (a, b) => (b.survey.top3 - a.survey.top3) || (b.survey.numberOne - a.survey.numberOne) || a.shortName.localeCompare(b.shortName);
+  const leaderRanked = [...destinations].sort(bySupport);
+  const consensusLeader = leaderRanked[0];
+  const strongSecond = leaderRanked[1];
 
-  // KPI tiles — computed from the destinations array so they can't drift out of sync
+  // KPI tiles — computed from the destinations array so they can't drift out of sync.
+  // Cheapest option and Group favorite are shown with equal visual weight, deliberately —
+  // neither tile is styled to look like "the" answer.
   document.getElementById('kpiCheapestName').textContent = sorted[0].shortName;
   document.getElementById('kpiCheapestValue').textContent = '≈ ' + fmt(sorted[0].perPerson) + ' / person';
+  document.getElementById('kpiFavoriteName').textContent = consensusLeader.shortName;
+  document.getElementById('kpiFavoriteValue').textContent = consensusLeader.survey.top3 + '/' + SURVEY_RESPONSES + ' top-3 · ' + fmt(consensusLeader.perPerson) + '/person';
   document.getElementById('kpiCount').textContent = destinations.length;
+  document.getElementById('kpiCountSub').textContent = 'of ' + TOTAL_RESEARCHED + ' researched — narrowed by survey';
   document.getElementById('kpiSpread').textContent = fmt(sorted[0].perPerson) + '–' + fmt(sorted[sorted.length - 1].perPerson);
 
-  // Gridlines + axis
-  const gridlinesEl = document.getElementById('gridlines');
-  const axisEl = document.getElementById('axisRow');
-  ticks.forEach(t => {
-    const pct = (t / AXIS_MAX) * 100;
-    const line = document.createElement('i');
-    line.style.left = pct + '%';
-    gridlinesEl.appendChild(line);
-    const label = document.createElement('span');
-    label.style.left = pct + '%';
-    label.textContent = '$' + t.toLocaleString('en-US');
-    axisEl.appendChild(label);
+  // Group feedback card
+  document.getElementById('surveyIntro').textContent = SURVEY_RESPONSES + ' responses collected across the group. A veto was treated as absolute — here’s how that reshaped the list.';
+  document.getElementById('kpiLeaderName').textContent = consensusLeader.shortName;
+  document.getElementById('kpiLeaderStats').textContent = consensusLeader.survey.vetoes + ' vetoes · ' + consensusLeader.survey.top3 + '/6 top-3 · ' + consensusLeader.survey.numberOne + '/6 #1 picks';
+  document.getElementById('kpiSecondName').textContent = strongSecond.shortName;
+  document.getElementById('kpiSecondStats').textContent = strongSecond.survey.vetoes + ' vetoes · ' + strongSecond.survey.top3 + '/6 top-3 · ' + strongSecond.survey.numberOne + '/6 #1 picks';
+  document.getElementById('kpiCutCount').textContent = removedDestinations.length;
+  document.getElementById('kpiResponses').textContent = SURVEY_RESPONSES;
+
+  // Compact "N vetoes · N/6 top-3 · N #1" support string, reused by the scatter tooltip and table.
+  // Zero-value parts are dropped so the common case (0 vetoes) doesn't clutter every row.
+  const supportLabel = d => {
+    const parts = [];
+    if (d.survey.vetoes > 0) parts.push(d.survey.vetoes + (d.survey.vetoes === 1 ? ' veto' : ' vetoes'));
+    parts.push(d.survey.top3 + '/' + SURVEY_RESPONSES + ' top-3');
+    if (d.survey.numberOne > 0) parts.push(d.survey.numberOne + ' #1');
+    return parts.join(' · ');
+  };
+
+  const removedListEl = document.getElementById('removedList');
+  removedDestinations.forEach(r => {
+    const li = document.createElement('li');
+    li.textContent = r.name + ' — ' + r.reason;
+    removedListEl.appendChild(li);
   });
 
-  // Bars
+  // Scatter — cost (x) vs. group top-3 support (y), bubble size = #1 picks. Position carries
+  // both dimensions at once, on purpose: there's no single sort order, so a cheap destination
+  // can't visually read as "the winner" just because it's leftmost, the way a price-sorted
+  // bar list would. Domains are padded past the data range so no point sits flush on an edge.
   const tooltip = document.getElementById('tooltip');
-  const barRows = document.getElementById('barRows');
-  sorted.forEach(d => {
-    const row = document.createElement('div');
-    row.className = 'bar-row';
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.getElementById('scatterChart');
+  const svgEl = (tag, attrs) => {
+    const el = document.createElementNS(svgNS, tag);
+    Object.keys(attrs || {}).forEach(k => el.setAttribute(k, attrs[k]));
+    return el;
+  };
+  const PLOT = { left: 60, right: 820, top: 24, bottom: 380 };
+  const X_DOMAIN = [300, 1550];
+  const Y_DOMAIN = [0, 6];
+  const xTicks = [500, 750, 1000, 1250, 1500];
+  const yTicks = [0, 1, 2, 3, 4, 5, 6];
+  const xScale = cost => PLOT.left + (cost - X_DOMAIN[0]) / (X_DOMAIN[1] - X_DOMAIN[0]) * (PLOT.right - PLOT.left);
+  const yScale = top3 => PLOT.bottom - (top3 - Y_DOMAIN[0]) / (Y_DOMAIN[1] - Y_DOMAIN[0]) * (PLOT.bottom - PLOT.top);
+  // Area-correct radius (not linear) so a 3x #1-picks difference doesn't look like a 3x-bigger
+  // circle — sqrt keeps perceived area proportional to the value, per standard bubble-chart practice.
+  const maxNumberOne = Math.max(...destinations.map(d => d.survey.numberOne), 1);
+  const radiusScale = n => 8 + 14 * Math.sqrt(n / maxNumberOne);
 
-    const label = document.createElement('div');
-    label.className = 'bar-label';
+  // Horizontal gridlines + y-axis ticks (top-3 support out of 6)
+  yTicks.forEach(t => {
+    const y = yScale(t);
+    svg.appendChild(svgEl('line', { class: 'scatter-gridline', x1: PLOT.left, x2: PLOT.right, y1: y, y2: y }));
+    const tick = svgEl('text', { class: 'scatter-tick', x: PLOT.left - 10, y: y + 4, 'text-anchor': 'end' });
+    tick.textContent = t;
+    svg.appendChild(tick);
+  });
+  // X-axis ticks (per-person cost)
+  xTicks.forEach(t => {
+    const x = xScale(t);
+    const tick = svgEl('text', { class: 'scatter-tick', x: x, y: PLOT.bottom + 20, 'text-anchor': 'middle' });
+    tick.textContent = '$' + t.toLocaleString('en-US');
+    svg.appendChild(tick);
+  });
+  // Axis titles
+  const xTitle = svgEl('text', { class: 'scatter-axis-label', x: (PLOT.left + PLOT.right) / 2, y: 424, 'text-anchor': 'middle' });
+  xTitle.textContent = 'Per-person cost →';
+  svg.appendChild(xTitle);
+  const yMid = (PLOT.top + PLOT.bottom) / 2;
+  const yTitle = svgEl('text', { class: 'scatter-axis-label', x: 0, y: 0, 'text-anchor': 'middle', transform: 'translate(16,' + yMid + ') rotate(-90)' });
+  yTitle.textContent = '↑ Top-3 support (of 6)';
+  svg.appendChild(yTitle);
+
+  // One point per remaining destination. Hit target is drawn first (behind, but pointer-events
+  // still reach it because the visible point/label above it both have pointer-events: none) so
+  // hover/focus works across the whole bubble, not just its visible edge-to-edge fill.
+  destinations.forEach(d => {
+    const cx = xScale(d.perPerson);
+    const cy = yScale(d.survey.top3);
+    const r = radiusScale(d.survey.numberOne);
+
+    const hit = svgEl('circle', {
+      class: 'scatter-hit', cx, cy, r: Math.max(r + 10, 22),
+      tabindex: '0', role: 'img',
+      'aria-label': d.name + ': ' + fmt(d.perPerson) + ' per person, ' + supportLabel(d)
+    });
+    svg.appendChild(hit);
+
+    const point = svgEl('circle', { class: 'scatter-point', cx, cy, r });
+    svg.appendChild(point);
+
+    const label = svgEl('text', { class: 'scatter-label', x: cx, y: cy - r - 8 });
     label.textContent = d.shortName;
-    label.title = d.name + ' — ' + d.airport;
-    row.appendChild(label);
-
-    const track = document.createElement('div');
-    track.className = 'bar-track';
-    const fill = document.createElement('div');
-    fill.className = 'bar-fill';
-    const widthPct = (d.perPerson / AXIS_MAX) * 100;
-    fill.style.width = widthPct + '%';
-    fill.tabIndex = 0;
-    fill.setAttribute('role', 'img');
-    fill.setAttribute('aria-label', d.name + ': ' + fmt(d.perPerson) + ' per person, ' + fmt(d.grandTotal) + ' total');
-    track.appendChild(fill);
-
-    const value = document.createElement('span');
-    value.className = 'bar-value';
-    value.style.left = 'calc(' + widthPct + '% + 8px)';
-    value.textContent = fmt(d.perPerson);
-    if (d.badge === 'good') {
-      const b = document.createElement('span');
-      b.className = 'badge-good';
-      b.textContent = '✓ ' + d.badgeText;
-      value.appendChild(b);
-    }
-    track.appendChild(value);
-    row.appendChild(track);
-    barRows.appendChild(row);
+    svg.appendChild(label);
 
     const showTip = (evt) => {
+      point.classList.add('is-active');
       tooltip.innerHTML = '';
       const l1 = document.createElement('div');
       l1.textContent = d.name;
@@ -762,48 +664,56 @@
       l2.textContent = fmt(d.perPerson) + ' / person';
       const l3 = document.createElement('div');
       l3.textContent = fmt(d.grandTotal) + ' total · ' + d.airport;
-      tooltip.appendChild(l1); tooltip.appendChild(l2); tooltip.appendChild(l3);
+      const l4 = document.createElement('div');
+      l4.textContent = supportLabel(d);
+      tooltip.appendChild(l1); tooltip.appendChild(l2); tooltip.appendChild(l3); tooltip.appendChild(l4);
       tooltip.classList.add('show');
       positionTip(evt);
     };
     const positionTip = (evt) => {
-      const x = evt.clientX !== undefined ? evt.clientX : fill.getBoundingClientRect().right;
-      const y = evt.clientY !== undefined ? evt.clientY : fill.getBoundingClientRect().top;
+      const x = evt.clientX !== undefined ? evt.clientX : hit.getBoundingClientRect().right;
+      const y = evt.clientY !== undefined ? evt.clientY : hit.getBoundingClientRect().top;
       tooltip.style.left = Math.min(x + 14, window.innerWidth - 236) + 'px';
       tooltip.style.top = Math.max(y - 46, 8) + 'px';
     };
-    const hideTip = () => tooltip.classList.remove('show');
+    const hideTip = () => {
+      point.classList.remove('is-active');
+      tooltip.classList.remove('show');
+    };
 
-    fill.addEventListener('mousemove', showTip);
-    fill.addEventListener('mouseleave', hideTip);
-    fill.addEventListener('focus', showTip);
-    fill.addEventListener('blur', hideTip);
+    hit.addEventListener('mousemove', showTip);
+    hit.addEventListener('mouseleave', hideTip);
+    hit.addEventListener('focus', showTip);
+    hit.addEventListener('blur', hideTip);
   });
 
-  // Summary table
+  // Summary table — ordered by group support (leaderRanked), not price, so it doesn't
+  // re-introduce the cheapest-first framing the chart above was redesigned to avoid.
   const summaryBody = document.querySelector('#summaryTable tbody');
-  sorted.forEach(d => {
+  leaderRanked.forEach(d => {
     const tr = document.createElement('tr');
     const cells = [
       d.name,
       d.airport,
       fmt(d.grandTotal),
       fmt(d.perPerson),
+      supportLabel(d),
       d.headline
     ];
     cells.forEach((c, i) => {
       const td = document.createElement('td');
       if (i === 2 || i === 3) td.className = 'num';
-      if (i === 4) td.className = 'note-cell';
+      if (i === 5) td.className = 'note-cell';
       td.textContent = c;
       tr.appendChild(td);
     });
     summaryBody.appendChild(tr);
   });
 
-  // Destination accordion
+  // Destination accordion — ordered by group support so the consensus leader (Zion) is what's
+  // open by default, not whichever destination happens to be cheapest.
   const destList = document.getElementById('destinationList');
-  sorted.forEach((d, idx) => {
+  leaderRanked.forEach((d, idx) => {
     const det = document.createElement('details');
     det.className = 'dest';
     if (idx === 0) det.open = true;
@@ -883,19 +793,6 @@
     destList.appendChild(det);
   });
 
-  // Friends table
-  const friendsBody = document.querySelector('#friendsTable tbody');
-  friends.forEach(f => {
-    const tr = document.createElement('tr');
-    const vals = [f.name, f.home, f.airports, f.pax, f.passport];
-    vals.forEach((v, i) => {
-      const td = document.createElement('td');
-      if (i === 3) td.className = 'num';
-      td.textContent = v;
-      tr.appendChild(td);
-    });
-    friendsBody.appendChild(tr);
-  });
 </script>
 </body>
 </html>
